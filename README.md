@@ -1,29 +1,29 @@
-# TypeScript Context Logger
+# Context-Based Logger
 
-A lightweight, context-aware logging library built with TypeScript that provides structured logging with async context management using Node.js's AsyncLocalStorage.
+A lightweight, context-aware logging library for TypeScript that provides structured JSON logging with async context management using Node.js's `AsyncLocalStorage`.
 
 ## Features
 
-- 🚀 **Context-aware logging** - Automatically includes contextual information in log entries
-- 📝 **Structured logging** - JSON output format for easy parsing and analysis
-- 🔄 **Async context preservation** - Context persists across async operations
-- 🏷️ **Flexible tagging** - Add tags for categorization and filtering
+- 🎯 **Context-aware logging** - Automatically includes contextual information in log entries
+- 📝 **Structured JSON output** - All logs are output as JSON for easy parsing and analysis
+- 🔄 **Async context preservation** - Context persists across async operations using `AsyncLocalStorage`
+- 🏷️ **Flexible tagging** - Add tags for categorisation and filtering
 - 📊 **Metadata support** - Include custom key-value pairs in logs
-- 🎯 **Session tracking** - Track requests/operations with session IDs
-- 🛡️ **Type-safe** - Full TypeScript support with proper type definitions
+- 🎫 **Session tracking** - Track requests/operations with session IDs
+- 🛡️ **Fully type-safe** - Written in TypeScript with complete type definitions
 - ⚡ **Zero dependencies** - Only uses Node.js built-in modules
 
 ## Installation
 
 ```bash
-npm install logger-with-ts
+npm install context-based-logger
 ```
 
-Or if you're using this as a local development library:
+Or clone for local development:
 
 ```bash
-git clone https://github.com/peterzzshi/logger-with-ts
-cd logger-with-ts
+git clone https://github.com/peterzzshi/context-based-logger
+cd context-based-logger
 npm install
 npm run build
 ```
@@ -33,21 +33,27 @@ npm run build
 ### Basic Usage
 
 ```typescript
-import { logger } from 'logger-with-ts';
+import { logger } from 'context-based-logger/logger/logger';
 
-// Simple logging
+// Simple logging at different levels
 logger.info('Application started');
-logger.warn('This is a warning');
-logger.error('Something went wrong', new Error('Connection failed'));
+logger.warn('This is a warning message');
 logger.debug('Debug information');
+
+// Logging errors - pass message and Error object
+logger.error('Something went wrong', new Error('Connection failed'));
+
+// You can also pass just an Error
+logger.error(new Error('Database connection failed'));
 ```
 
 ### Context-Aware Logging
 
 ```typescript
-import { logger, LogContext, withLogContext } from 'logger-with-ts';
+import { logger } from 'context-based-logger/logger/logger';
+import { LogContext, withLogContext } from 'context-based-logger/logger/context';
 
-// Create a context
+// Create a context with session ID, category, tags, and metadata
 const requestContext = LogContext.create({
   sessionId: 'req-123',
   category: 'api-request',
@@ -70,15 +76,19 @@ withLogContext(requestContext, () => {
 
 ### Logger Methods
 
-The logger provides standard log levels:
+The logger provides four log levels. Each method accepts either a single value or a message with an additional value (typically an Error):
 
 ```typescript
+// Single argument - can be any value
 logger.debug(message: unknown): void
 logger.info(message: unknown): void
 logger.warn(message: unknown): void
 logger.error(message: unknown): void
 
-// With additional error context
+// Two arguments - message with additional context (e.g., Error)
+logger.debug(message: string, value: unknown): void
+logger.info(message: string, value: unknown): void
+logger.warn(message: string, value: unknown): void
 logger.error(message: string, error: Error): void
 ```
 
@@ -87,6 +97,8 @@ logger.error(message: string, error: Error): void
 #### Creating Contexts
 
 ```typescript
+import { LogContext } from 'context-based-logger/logger/context';
+
 // Empty context
 const context = LogContext.create();
 
@@ -101,47 +113,123 @@ const context = LogContext.create({
 
 #### Context Methods
 
+All context methods are immutable and return a new `LogContext` instance:
+
 ```typescript
-// Immutable context modifications (returns new LogContext)
+// Add or update session ID
 context.withSessionId(sessionId: string): LogContext
+
+// Set category (can be undefined to clear)
 context.withCategory(category: string | undefined): LogContext
+
+// Add tags (merges with existing tags)
 context.withTags(...tags: string[]): LogContext
+
+// Remove specific tags
 context.withoutTags(...tags: string[]): LogContext
+
+// Add metadata (merges with existing metadata)
 context.withMetadata(metadata: Record<string, string>): LogContext
+
+// Remove specific metadata keys
 context.withoutMetadata(...keys: string[]): LogContext
 ```
 
 #### Using Contexts
 
 ```typescript
-import { withLogContext, getLogContext } from 'logger-with-ts';
+import { logger } from 'context-based-logger/logger/logger';
+import { LogContext, withLogContext, getLogContext } from 'context-based-logger/logger/context';
 
-// Execute code within a context
+// Execute code within a context (works with sync and async functions)
 withLogContext(context, () => {
-  // All logging here includes context
   logger.info('This log includes context');
 });
 
-// Get current context
+// Async example
+await withLogContext(context, async () => {
+  await someAsyncOperation();
+  logger.info('Context is preserved across await');
+});
+
+// Get current context (returns empty context if none is set)
 const currentContext = getLogContext();
 ```
 
-## Context Data Types
+### Building Context Fluently
 
-### LogContextData Interface
+You can chain context methods for fluent context building:
+
+```typescript
+const context = LogContext.create()
+  .withSessionId(`req-${Date.now()}`)
+  .withCategory('api')
+  .withTags('user-service', 'database')
+  .withMetadata({
+    userId: '123',
+    endpoint: '/api/user',
+    method: 'GET'
+  });
+```
+
+## Type Definitions
+
+### LogContextData
 
 ```typescript
 interface LogContextData {
-  readonly tags: ReadonlySet<string>;           // Tags for categorization
-  readonly category: string | undefined;        // General category
-  readonly metadata: ReadonlyMap<string, string>; // Custom key-value pairs
-  readonly sessionId: string | undefined;       // Session/request ID
+  readonly tags: ReadonlySet<string>;
+  readonly category: string | undefined;
+  readonly metadata: ReadonlyMap<string, string>;
+  readonly sessionId: string | undefined;
 }
 ```
 
-## Log Output Format
+### LogOutput
 
-All logs are output as JSON with the following structure:
+The structure of JSON log output:
+
+```typescript
+interface LogOutput {
+  readonly level: 'debug' | 'info' | 'warn' | 'error';
+  readonly message?: unknown;
+  readonly sessionId?: string;
+  readonly details: {
+    readonly tags?: string[];
+    readonly category?: string;
+    readonly metadata?: Record<string, string>;
+    readonly stack?: string;  // Included when logging Errors
+    readonly timestamp: string;
+  };
+}
+```
+
+### Logger
+
+```typescript
+interface Logger {
+  debug(...parameters: LoggingParameters): void;
+  info(...parameters: LoggingParameters): void;
+  warn(...parameters: LoggingParameters): void;
+  error(...parameters: LoggingParameters): void;
+}
+```
+
+## Log Output Examples
+
+### Basic log (no context)
+
+```json
+{
+  "level": "info",
+  "message": "Application started",
+  "details": {
+    "timestamp": "2025-01-20T10:30:45.123Z"
+  }
+}
+```
+
+### Log with context
 
 ```json
 {
@@ -153,25 +241,41 @@ All logs are output as JSON with the following structure:
     "category": "api-request",
     "metadata": {
       "userId": "456",
-      "endpoint": "/api/login",
-      "method": "POST"
+      "endpoint": "/api/login"
     },
     "timestamp": "2025-01-20T10:30:45.123Z"
   }
 }
 ```
 
-## Advanced Usage Examples
+### Error log with stack trace
+
+```json
+{
+  "level": "error",
+  "message": "Database query failed Error: Connection timeout",
+  "sessionId": "req-123",
+  "details": {
+    "tags": ["database"],
+    "category": "db-operation",
+    "stack": "Error: Connection timeout\n    at ...",
+    "timestamp": "2025-01-20T10:30:45.123Z"
+  }
+}
+```
+
+## Usage Examples
 
 ### Express.js Middleware
 
 ```typescript
 import express from 'express';
-import { logger, LogContext, withLogContext } from 'logger-with-ts';
+import { logger } from 'context-based-logger/logger/logger';
+import { LogContext, withLogContext, getLogContext } from 'context-based-logger/logger/context';
 
 const app = express();
 
-// Logging middleware
+// Request logging middleware
 app.use((req, res, next) => {
   const context = LogContext.create({
     sessionId: `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -190,25 +294,23 @@ app.use((req, res, next) => {
   });
 });
 
-app.get('/users/:id', (req, res) => {
+app.get('/users/:id', async (req, res) => {
   const userId = req.params.id;
   
-  // Add user-specific context
-  const currentContext = getLogContext();
-  const userContext = currentContext.withMetadata({ userId });
+  // Enrich current context with user-specific data
+  const userContext = getLogContext()
+    .withMetadata({ userId })
+    .withTags('user-service');
   
-  withLogContext(userContext, async () => {
+  await withLogContext(userContext, async () => {
     logger.info('Fetching user data');
     
     try {
-      // Your business logic here
-      logger.debug('Querying database');
       const user = await getUserById(userId);
-      
       logger.info('User data retrieved successfully');
       res.json(user);
     } catch (error) {
-      logger.error('Failed to fetch user', error);
+      logger.error('Failed to fetch user', error as Error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -218,101 +320,95 @@ app.get('/users/:id', (req, res) => {
 ### Database Operations
 
 ```typescript
-async function executeQuery(sql: string, params: any[]) {
-  const currentContext = getLogContext();
-  const dbContext = currentContext
+async function executeQuery<T>(sql: string, params: unknown[]): Promise<T> {
+  const dbContext = getLogContext()
     .withTags('database')
     .withMetadata({ 
-      operation: 'SELECT',
-      table: 'users'
+      operation: sql.split(' ')[0].toUpperCase(),
+      table: extractTableName(sql)
     });
 
   return withLogContext(dbContext, async () => {
     logger.debug('Executing database query');
     
     try {
-      const result = await db.query(sql, params);
-      logger.info(`Query executed successfully, ${result.rows.length} rows returned`);
+      const result = await db.query<T>(sql, params);
+      logger.info('Query executed successfully');
       return result;
     } catch (error) {
-      logger.error('Database query failed', error);
+      logger.error('Database query failed', error as Error);
       throw error;
     }
   });
 }
 ```
 
-### Background Jobs
+### Background Job Processing
 
 ```typescript
-async function processJob(jobId: string, jobData: any) {
-  const jobContext = LogContext.create({
-    sessionId: jobId,
-    category: 'background-job',
-    tags: new Set(['worker', 'async']),
-    metadata: new Map([
-      ['jobType', jobData.type],
-      ['priority', jobData.priority.toString()]
-    ])
-  });
+async function processJob(jobId: string, jobData: JobData): Promise<void> {
+  const jobContext = LogContext.create()
+    .withSessionId(jobId)
+    .withCategory('background-job')
+    .withTags('worker', 'async')
+    .withMetadata({
+      jobType: jobData.type,
+      priority: String(jobData.priority)
+    });
 
-  return withLogContext(jobContext, async () => {
+  await withLogContext(jobContext, async () => {
     logger.info('Starting job processing');
     
     try {
-      // Process job steps
       logger.debug('Validating job data');
       await validateJobData(jobData);
       
-      logger.debug('Processing job logic');
-      await processJobLogic(jobData);
+      logger.debug('Executing job logic');
+      await executeJobLogic(jobData);
       
       logger.info('Job completed successfully');
     } catch (error) {
-      logger.error('Job processing failed', error);
+      logger.error('Job processing failed', error as Error);
       throw error;
     }
   });
 }
 ```
 
-## Adding Custom Context Types
+### Custom Context Factories
 
-You can extend the logger by creating wrapper functions for domain-specific contexts:
+Create reusable context factories for your domain:
 
 ```typescript
-// Custom context creators
-export function createApiContext(request: Request) {
+import { Request } from 'express';
+import { LogContext, getLogContext } from 'context-based-logger/logger/context';
+
+// Factory for HTTP request contexts
+export function createRequestContext(req: Request): LogContext {
   return LogContext.create({
-    sessionId: request.headers['x-request-id'] as string,
-    category: 'api',
-    tags: new Set(['http', 'api']),
+    sessionId: (req.headers['x-request-id'] as string) || `req-${Date.now()}`,
+    category: 'http',
+    tags: new Set(['api', req.method.toLowerCase()]),
     metadata: new Map([
-      ['method', request.method],
-      ['path', request.path],
-      ['ip', request.ip]
+      ['method', req.method],
+      ['path', req.path],
+      ['ip', req.ip || 'unknown']
     ])
   });
 }
 
-export function createDbContext(operation: string, table: string) {
+// Factory for database operation contexts
+export function createDbContext(operation: string, table: string): LogContext {
   return getLogContext()
-    .withTags('database')
+    .withTags('database', operation.toLowerCase())
     .withMetadata({ operation, table });
 }
 
-// Usage
-app.use((req, res, next) => {
-  const apiContext = createApiContext(req);
-  withLogContext(apiContext, () => next());
-});
-
-async function getUserById(id: string) {
-  const dbContext = createDbContext('SELECT', 'users');
-  return withLogContext(dbContext, async () => {
-    logger.info(`Fetching user ${id}`);
-    // ... database logic
-  });
+// Factory for external service call contexts
+export function createServiceContext(serviceName: string, operation: string): LogContext {
+  return getLogContext()
+    .withTags('external-service', serviceName)
+    .withMetadata({ service: serviceName, operation });
 }
 ```
 
@@ -321,40 +417,40 @@ async function getUserById(id: string) {
 ### Running the Demo
 
 ```bash
-# Install dependencies
 npm install
-
-# Run demo with live reload
-npm run dev
-
-# Build and run
-npm run demo
-
-# Watch mode
-npm run watch
+npm run dev        # Run demo with tsx
+npm run demo       # Build and run compiled demo
 ```
 
 ### Building
 
 ```bash
-npm run build
+npm run build      # Compile TypeScript to dist/
+npm run clean      # Remove dist/ directory
 ```
 
-## TypeScript Support
+### Testing
 
-This library is written in TypeScript and provides full type definitions. All context operations are type-safe, and the logger methods accept properly typed parameters.
+```bash
+npm test                # Run tests
+npm run test:watch      # Run tests in watch mode
+npm run test:coverage   # Run tests with coverage report
+```
 
-```typescript
-import type { Logger, LogContext, LogContextData } from 'logger-with-ts';
+### Code Quality
 
-// Use types in your application
-const customLogger: Logger = logger;
-const context: LogContext = LogContext.create();
+```bash
+npm run lint           # Run ESLint
+npm run lint:fix       # Fix ESLint issues
+npm run format         # Format with Prettier
+npm run format:check   # Check formatting
+npm run type-check     # TypeScript type checking
+npm run validate       # Run all checks (type-check, lint, test)
 ```
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Contributing
 

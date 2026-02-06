@@ -1,5 +1,5 @@
-import {logger} from "./logger/logger";
-import {LogContext, withLogContext} from "./logger/context";
+import {logger} from "../src/logger/logger";
+import {LogContext, withLogContext} from "../src/logger/context";
 
 // Basic usage
 console.log('=== Basic Logging ===');

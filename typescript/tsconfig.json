@@ -1,5 +1,9 @@
 {
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"],
   "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "node",
@@ -7,8 +11,6 @@
       "ES2022"
     ],
     "types": ["node", "jest"],
-    "outDir": "./dist",
-    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -19,13 +21,5 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true
-  },
-  "include": [
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "src/**/*.test.ts"
-  ]
+  }
 }

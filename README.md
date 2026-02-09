@@ -1,123 +1,87 @@
 # Context-Based Logger
 
-A lightweight, context-aware logging library available in both **TypeScript** and **Go** that provides structured JSON logging with context management.
+Lightweight context-aware logging for **TypeScript** and **Go** with structured JSON output.
 
 ## Features
 
-- 🎯 **Context-aware logging** - Automatically includes contextual information in log entries
-- 📝 **Structured JSON output** - All logs are output as JSON for easy parsing and analysis
-- 🔄 **Context propagation** - TypeScript uses `AsyncLocalStorage`, Go uses `context.Context`
-- 🏷️ **Flexible tagging** - Add tags for categorization and filtering
-- 📊 **Metadata support** - Include custom key-value pairs in logs
-- 🎫 **Session tracking** - Track requests/operations with session IDs
-- 🛡️ **Type-safe** - Fully typed implementations
-- ⚡ **Zero external dependencies** - Only uses standard libraries
+- Context-aware logging with automatic propagation
+- Structured JSON output
+- Flexible tagging and metadata
+- Session tracking
+- Type-safe
+- Zero external dependencies
 
-## Project Structure
+## Usage
 
-```
-context-based-logger/
-├── typescript/          # TypeScript implementation
-│   ├── src/
-│   │   └── logger/     # Logger source code
-│   ├── examples/       # Usage examples
-│   └── README.md       # TypeScript-specific docs
-├── golang/             # Go implementation
-│   ├── logger/         # Logger package
-│   ├── examples/       # Usage examples
-│   └── README.md       # Go-specific docs
-└── README.md           # This file
-```
-
-## Quick Start
+Copy the `logger/` folder into your project.
 
 ### TypeScript
-
-```bash
-cd typescript
-npm install
-npm run dev
-```
-
-See [typescript/README.md](typescript/README.md) for detailed TypeScript documentation.
-
-### Go
-
-```bash
-cd golang
-go run examples/main.go
-```
-
-See [golang/README.md](golang/README.md) for detailed Go documentation.
-
-## Language-Specific Examples
-
-### TypeScript Example
 
 ```typescript
 import { logger } from './logger/logger';
 import { LogContext, withLogContext } from './logger/context';
 
-// Basic logging
-logger.info('Application started');
-
-// Context-aware logging
-const logCtx = LogContext.create({
-  sessionId: 'req-123',
-  category: 'api',
-  tags: new Set(['user-service']),
-  metadata: new Map([['userId', '456']])
-});
+const logCtx = LogContext.create()
+  .withSessionId('req-123')
+  .withMetadata({ userId: '456' });
 
 withLogContext(logCtx, () => {
   logger.info('Processing request');
 });
 ```
 
-### Go Example
+### Go
 
 ```go
-package main
+import "yourproject/logger"
 
-import (
-    "context"
-    "github.com/yourusername/context-based-logger/logger"
-)
+ctx := context.Background()
+logCtx := logger.NewLogContext(logger.LogContextData{}).
+    WithSessionID("req-123").
+    WithMetadata(map[string]string{"userId": "456"})
 
-func main() {
-    // Basic logging
-    logger.Info("Application started")
-    
-    // Context-aware logging
-    ctx := context.Background()
-    logCtx := logger.NewLogContext(logger.LogContextData{}).
-        WithSessionID("req-123").
-        WithCategory("api").
-        WithTags("user-service").
-        WithMetadata(map[string]string{"userId": "456"})
-    
-    ctx = logger.WithLogContext(ctx, logCtx)
-    log := logger.New(ctx)
-    log.Info("Processing request")
-}
+_, err := logger.WithLogContext(ctx, logCtx, func(ctx context.Context) (struct{}, error) {
+    logger.Info(ctx, "Processing request")
+    return struct{}{}, nil
+})
 ```
 
-## Key Concepts
+## Project Structure
 
-### TypeScript Implementation
-- Uses Node.js `AsyncLocalStorage` for automatic context propagation
-- Context flows through async/await operations automatically
-- Immutable context with builder methods
+```
+context-based-logger/
+├── typescript/
+│   └── src/logger/     # Copy this folder
+├── golang/
+│   └── logger/         # Copy this folder
+└── README.md
+```
 
-### Go Implementation  
-- Uses Go's standard `context.Context` for explicit context passing
-- Context must be passed through function parameters
-- Immutable context with builder methods
-- Perfect for HTTP handlers and microservices
+## Examples
 
-## Example Output
+See `typescript/examples/demo.ts` and `golang/examples/main.go` for complete examples.
 
-Both implementations produce structured JSON logs:
+## API
+
+### Context Methods
+
+Both implementations provide immutable context builders:
+
+- `WithCategory(category)` / `withCategory(category)`
+- `WithSessionID(id)` / `withSessionId(id)`
+- `WithTags(...)` / `withTags(...)`
+- `WithoutTags(...)` / `withoutTags(...)`
+- `WithMetadata(map)` / `withMetadata(obj)`
+- `WithoutMetadata(...)` / `withoutMetadata(...)`
+
+### Logger Methods
+
+- `Debug(msg)` / `logger.debug(msg)`
+- `Info(msg)` / `logger.info(msg)`
+- `Warn(msg)` / `logger.warn(msg)`
+- `Error(msg)` / `logger.error(msg)`
+
+## Output Format
 
 ```json
 {
@@ -128,31 +92,9 @@ Both implementations produce structured JSON logs:
     "category": "api",
     "tags": ["user-service"],
     "metadata": {"userId": "456"},
-    "timestamp": "2026-02-06T10:30:45Z"
+    "timestamp": "2026-02-09T06:13:24Z"
   }
 }
 ```
 
-## Testing
 
-### TypeScript
-```bash
-cd typescript
-npm install
-npm test
-```
-
-### Go
-```bash
-cd golang/logger
-go test -v
-go test -bench=.
-```
-
-## License
-
-MIT
-
-## Contributing
-
-Contributions are welcome! Please see the language-specific README files for detailed documentation and development guidelines.

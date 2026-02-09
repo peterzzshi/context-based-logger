@@ -9,82 +9,69 @@ import (
 	"time"
 )
 
-// contextLogger implements the Logger interface with context support
-type contextLogger struct {
-	ctx context.Context
+func Debug(ctx context.Context, args ...interface{}) {
+	log(ctx, LevelDebug, args...)
 }
 
-// New creates a new Logger with the given context
-func New(ctx context.Context) Logger {
-	return &contextLogger{ctx: ctx}
+func Info(ctx context.Context, args ...interface{}) {
+	log(ctx, LevelInfo, args...)
 }
 
-// Debug logs a debug-level message
-func (cl *contextLogger) Debug(args ...interface{}) {
-	cl.log(LevelDebug, args...)
+func Warn(ctx context.Context, args ...interface{}) {
+	log(ctx, LevelWarn, args...)
 }
 
-// Info logs an info-level message
-func (cl *contextLogger) Info(args ...interface{}) {
-	cl.log(LevelInfo, args...)
+func Error(ctx context.Context, args ...interface{}) {
+	log(ctx, LevelError, args...)
 }
 
-// Warn logs a warning-level message
-func (cl *contextLogger) Warn(args ...interface{}) {
-	cl.log(LevelWarn, args...)
-}
-
-// Error logs an error-level message
-func (cl *contextLogger) Error(args ...interface{}) {
-	cl.log(LevelError, args...)
-}
-
-// log creates and writes a log entry
-func (cl *contextLogger) log(level LogLevel, args ...interface{}) {
-	logContext := GetLogContext(cl.ctx)
+func log(ctx context.Context, level LogLevel, args ...interface{}) {
+	logContext := GetLogContext(ctx)
 
 	output := LogOutput{
 		Level:   level,
 		Details: make(map[string]interface{}),
 	}
 
-	// Add session ID if present
 	if logContext.data.SessionID != "" {
 		output.SessionID = logContext.data.SessionID
 	}
 
-	// Add tags if present
 	if len(logContext.data.Tags) > 0 {
 		tags := make([]string, 0, len(logContext.data.Tags))
 		for tag := range logContext.data.Tags {
 			tags = append(tags, tag)
 		}
-		sort.Strings(tags) // Sort for consistent output
+		sort.Strings(tags)
 		output.Details["tags"] = tags
 	}
 
-	// Add category if present
 	if logContext.data.Category != "" {
 		output.Details["category"] = logContext.data.Category
 	}
 
-	// Add metadata if present
 	if len(logContext.data.Metadata) > 0 {
-		output.Details["metadata"] = logContext.data.Metadata
+		metadata := make(map[string]string, len(logContext.data.Metadata))
+		for k, v := range logContext.data.Metadata {
+			metadata[k] = v
+		}
+		output.Details["metadata"] = metadata
 	}
 
-	// Add timestamp
+	if len(args) > 0 {
+		message, stack := extractMessageAndStack(args...)
+		if message != "" {
+			output.Message = message
+		}
+		if stack != "" {
+			output.Details["stack"] = stack
+		}
+	}
+
 	output.Details["timestamp"] = time.Now().UTC().Format(time.RFC3339)
 
-	// Format message
-	if len(args) > 0 {
-		output.Message = fmt.Sprint(args...)
-	}
-
-	// Marshal to JSON and write to stdout
 	jsonBytes, err := json.Marshal(output)
 	if err != nil {
-		// Fallback if JSON marshaling fails
 		fmt.Fprintf(os.Stderr, "Failed to marshal log: %v\n", err)
 		return
 	}
@@ -92,25 +79,38 @@ func (cl *contextLogger) log(level LogLevel, args ...interface{}) {
 	fmt.Fprintln(os.Stdout, string(jsonBytes))
 }
 
-// Default logger instance for convenience functions
-var defaultLogger = New(context.Background())
+func extractMessageAndStack(args ...interface{}) (message string, stack string) {
+	if len(args) == 0 {
+		return "", ""
+	}
 
-// Debug logs a debug-level message using the default logger
-func Debug(args ...interface{}) {
-	defaultLogger.Debug(args...)
-}
+	// Single argument case
+	if len(args) == 1 {
+		if err, ok := args[0].(error); ok {
+			message = err.Error()
+			stack = fmt.Sprintf("%+v", err)
+		} else {
+			message = fmt.Sprint(args[0])
+		}
+		return message, stack
+	}
 
-// Info logs an info-level message using the default logger
-func Info(args ...interface{}) {
-	defaultLogger.Info(args...)
-}
+	// Multiple arguments case
+	firstArg := fmt.Sprint(args[0])
+	lastArg := args[len(args)-1]
 
-// Warn logs a warning-level message using the default logger
-func Warn(args ...interface{}) {
-	defaultLogger.Warn(args...)
-}
+	// Check if last argument is an error
+	if err, ok := lastArg.(error); ok {
+		if len(args) == 2 {
+			message = fmt.Sprintf("%s %s", firstArg, err.Error())
+		} else {
+			middle := fmt.Sprint(args[1 : len(args)-1]...)
+			message = fmt.Sprintf("%s%s %s", firstArg, middle, err.Error())
+		}
+		stack = fmt.Sprintf("%+v", err)
+	} else {
+		message = fmt.Sprint(args...)
+	}
 
-// Error logs an error-level message using the default logger
-func Error(args ...interface{}) {
-	defaultLogger.Error(args...)
+	return message, stack
 }

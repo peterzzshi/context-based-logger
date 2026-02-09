@@ -116,29 +116,67 @@ func TestWithLogContext(t *testing.T) {
 		Category:  "test-category",
 	})
 
-	ctx2 := WithLogContext(ctx, logCtx)
-	retrieved := GetLogContext(ctx2)
+	_, err := WithLogContext(ctx, logCtx, func(ctx context.Context) (struct{}, error) {
+		retrieved := GetLogContext(ctx)
 
-	if retrieved.data.SessionID != "test-session" {
-		t.Errorf("Expected session ID 'test-session', got '%s'", retrieved.data.SessionID)
-	}
-	if retrieved.data.Category != "test-category" {
-		t.Errorf("Expected category 'test-category', got '%s'", retrieved.data.Category)
+		if retrieved.data.SessionID != "test-session" {
+			t.Errorf("Expected session ID 'test-session', got '%s'", retrieved.data.SessionID)
+		}
+		if retrieved.data.Category != "test-category" {
+			t.Errorf("Expected category 'test-category', got '%s'", retrieved.data.Category)
+		}
+		return struct{}{}, nil
+	})
+
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
 	}
 }
 
-func TestLogger_BasicLogging(t *testing.T) {
+func TestWithLogContext_CallbackString(t *testing.T) {
 	ctx := context.Background()
-	log := New(ctx)
+	logCtx := NewLogContext(LogContextData{
+		SessionID: "test-123",
+		Category:  "test",
+	}).WithTags("unit-test")
 
-	// These should not panic
-	log.Debug("Debug message")
-	log.Info("Info message")
-	log.Warn("Warning message")
-	log.Error("Error message")
+	result, err := WithLogContext(ctx, logCtx, func(ctx context.Context) (string, error) {
+		lc := GetLogContext(ctx)
+		if lc.data.SessionID != "test-123" {
+			t.Error("Context not properly propagated")
+		}
+		return "success", nil
+	})
+
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if result != "success" {
+		t.Errorf("Expected result 'success', got '%s'", result)
+	}
 }
 
-func TestLogger_WithContext(t *testing.T) {
+func TestWithLogContext_CallbackInt(t *testing.T) {
+	ctx := context.Background()
+	logCtx := NewLogContext(LogContextData{SessionID: "calc-123"})
+
+	result, err := WithLogContext(ctx, logCtx, func(ctx context.Context) (int, error) {
+		lc := GetLogContext(ctx)
+		if lc.data.SessionID != "calc-123" {
+			t.Error("Context not properly propagated")
+		}
+		return 42, nil
+	})
+
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if result != 42 {
+		t.Errorf("Expected result 42, got %d", result)
+	}
+}
+
+func TestLogger_ConvenienceFunctions(t *testing.T) {
 	ctx := context.Background()
 	logCtx := NewLogContext(LogContextData{
 		SessionID: "req-123",
@@ -147,28 +185,21 @@ func TestLogger_WithContext(t *testing.T) {
 		"userId": "456",
 	})
 
-	ctx = WithLogContext(ctx, logCtx)
-	log := New(ctx)
-
-	// Should not panic and should include context
-	log.Info("Processing request")
-}
-
-func TestLogger_ConvenienceFunctions(t *testing.T) {
-	// These should not panic
-	Debug("Debug message")
-	Info("Info message")
-	Warn("Warning message")
-	Error("Error message")
+	_, _ = WithLogContext(ctx, logCtx, func(ctx context.Context) (struct{}, error) {
+		Debug(ctx, "Debug message")
+		Info(ctx, "Info message")
+		Warn(ctx, "Warning message")
+		Error(ctx, "Error message")
+		return struct{}{}, nil
+	})
 }
 
 func BenchmarkLogger_NoContext(b *testing.B) {
 	ctx := context.Background()
-	log := New(ctx)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		log.Info("Benchmark message")
+		Info(ctx, "Benchmark message")
 	}
 }
 
@@ -183,12 +214,12 @@ func BenchmarkLogger_WithContext(b *testing.B) {
 		"method":   "GET",
 	})
 
-	ctx = WithLogContext(ctx, logCtx)
-	log := New(ctx)
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		log.Info("Benchmark message")
+		_, _ = WithLogContext(ctx, logCtx, func(ctx context.Context) (struct{}, error) {
+			Info(ctx, "Benchmark message")
+			return struct{}{}, nil
+		})
 	}
 }
 
@@ -207,19 +238,17 @@ func BenchmarkLogContext_Copy(b *testing.B) {
 	}
 }
 
-func ExampleLogger() {
+func ExampleInfo() {
 	ctx := context.Background()
-	logCtx := NewLogContext(LogContextData{}).
-		WithSessionID("req-123").
+	logCtx := NewLogContext(LogContextData{}).WithSessionID("req-123").
 		WithCategory("api").
 		WithTags("user-service").
 		WithMetadata(map[string]string{
 			"userId": "456",
 		})
 
-	ctx = WithLogContext(ctx, logCtx)
-	log := New(ctx)
-
-	log.Info("Processing user request")
-	// Output will be JSON with all context information
+	_, _ = WithLogContext(ctx, logCtx, func(ctx context.Context) (struct{}, error) {
+		Info(ctx, "Processing user request")
+		return struct{}{}, nil
+	})
 }
